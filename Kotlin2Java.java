@@ -53,9 +53,15 @@ public class Kotlin2Java {
 class KotlinWalker extends KotlinBaseVisitor {
     @Override public String visitProg(KotlinParser.ProgContext ctx) { return (String)visitChildren(ctx); }
 
-    @Override public String visitPackageDeclaration(KotlinParser.PackageDeclarationContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitPackageDeclaration(KotlinParser.PackageDeclarationContext ctx) {
+        return "package " + this.visitPackageName(ctx.packageName()) + ";\n";
+    }
 
-    @Override public String visitPackageName(KotlinParser.PackageNameContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitPackageName(KotlinParser.PackageNameContext ctx) {
+        return ctx.getText();
+    }
 
     @Override public String visitPackageSubName(KotlinParser.PackageSubNameContext ctx) { return (String)visitChildren(ctx); }
 
