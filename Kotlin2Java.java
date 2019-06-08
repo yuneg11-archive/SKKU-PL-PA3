@@ -51,6 +51,19 @@ public class Kotlin2Java {
 }
 
 class KotlinWalker extends KotlinBaseVisitor {
+    @Override
+    public String visitChildren(RuleNode node) {
+        StringBuilder result = new StringBuilder();
+        int n = node.getChildCount();
+
+        for(int i = 0; i < n; i++) {
+            ParseTree c = node.getChild(i);
+            result.append(c.accept(this));
+        }
+
+        return result.toString();
+    }
+
     @Override public String visitProg(KotlinParser.ProgContext ctx) { return (String)visitChildren(ctx); }
 
     @Override
@@ -65,11 +78,19 @@ class KotlinWalker extends KotlinBaseVisitor {
 
     @Override public String visitPackageSubName(KotlinParser.PackageSubNameContext ctx) { return (String)visitChildren(ctx); }
 
-    @Override public String visitImportList(KotlinParser.ImportListContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitImportList(KotlinParser.ImportListContext ctx) {
+        return visitChildren(ctx);
+    }
 
-    @Override public String visitImportDeclaration(KotlinParser.ImportDeclarationContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitImportDeclaration(KotlinParser.ImportDeclarationContext ctx) {
+        return "import " + this.visitImportName(ctx.importName()) + ";\n";
+    }
 
-    @Override public String visitImportName(KotlinParser.ImportNameContext ctx) { return (String)visitChildren(ctx); }
+    @Override public String visitImportName(KotlinParser.ImportNameContext ctx) {
+        return ctx.getText();
+    }
 
     @Override public String visitImportSubName(KotlinParser.ImportSubNameContext ctx) { return (String)visitChildren(ctx); }
 
