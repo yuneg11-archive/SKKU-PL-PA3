@@ -51,16 +51,24 @@ public class Kotlin2Java {
 }
 
 class KotlinWalker extends KotlinBaseVisitor {
+    public String nullSafe(Object string) {
+        if(string == null) {
+            return "";
+        } else {
+            return (String)string;
+        }
+    }
+
     public String visitChildren(RuleNode node, String seperator) {
         StringBuilder result = new StringBuilder();
         int n = node.getChildCount();
 
         if(n > 0) {
-            result.append(node.getChild(0).accept(this));
+            result.append(nullSafe(node.getChild(0).accept(this)));
         }
 
         for(int i = 1; i < n; i++) {
-            result.append(seperator + node.getChild(i).accept(this));
+            result.append(seperator + nullSafe(node.getChild(i).accept(this)));
         }
 
         return result.toString();
@@ -98,21 +106,47 @@ class KotlinWalker extends KotlinBaseVisitor {
         return "import " + this.visitImportName(ctx.importName()) + ";\n";
     }
 
-    @Override public String visitImportName(KotlinParser.ImportNameContext ctx) {
+    @Override
+    public String visitImportName(KotlinParser.ImportNameContext ctx) {
         return ctx.getText();
     }
 
     @Override public String visitImportSubName(KotlinParser.ImportSubNameContext ctx) { return (String)visitChildren(ctx); }
 
-    @Override public String visitTopLevelBody(KotlinParser.TopLevelBodyContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitTopLevelBody(KotlinParser.TopLevelBodyContext ctx) {
+        return "class Main {\n" + visitChildren(ctx) + "\n}";
+    }
 
-    @Override public String visitTopLevelBodyElement(KotlinParser.TopLevelBodyElementContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitTopLevelBodyElement(KotlinParser.TopLevelBodyElementContext ctx) {
+        return visitChildren(ctx);
+    }
 
     @Override public String visitBody(KotlinParser.BodyContext ctx) { return (String)visitChildren(ctx); }
 
     @Override public String visitBodyElement(KotlinParser.BodyElementContext ctx) { return (String)visitChildren(ctx); }
 
-    @Override public String visitFunctionDeclaration(KotlinParser.FunctionDeclarationContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitFunctionDeclaration(KotlinParser.FunctionDeclarationContext ctx) {
+        String name;
+
+        if((name = ctx.Id().getText()).equals("main")) {
+            if(ctx.expression() != null) {
+                return "public static void main(String args[])" + this.visitExpression(ctx.expression());
+            } else {
+                return "public static void main(String args[])" + this.visitCompoundStatement(ctx.compoundStatement());
+            }
+        } else {
+            String header = "static" + this.visitType(ctx.type()) + " " + name + "(" + this.visitFunctionDeclarationParameterList(ctx.functionDeclarationParameterList()) + ") ";
+
+            if(ctx.expression() != null) {
+                return header + this.visitExpression(ctx.expression());
+            } else {
+                return header + this.visitCompoundStatement(ctx.compoundStatement());
+            }
+        }
+    }
 
     @Override public String visitFunctionDeclarationParameterList(KotlinParser.FunctionDeclarationParameterListContext ctx) { return (String)visitChildren(ctx); }
 
