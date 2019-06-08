@@ -51,20 +51,30 @@ public class Kotlin2Java {
 }
 
 class KotlinWalker extends KotlinBaseVisitor {
-    @Override
-    public String visitChildren(RuleNode node) {
+    public String visitChildren(RuleNode node, String seperator) {
         StringBuilder result = new StringBuilder();
         int n = node.getChildCount();
 
-        for(int i = 0; i < n; i++) {
-            ParseTree c = node.getChild(i);
-            result.append(c.accept(this));
+        if(n > 0) {
+            result.append(node.getChild(0).accept(this));
+        }
+
+        for(int i = 1; i < n; i++) {
+            result.append(seperator + node.getChild(i).accept(this));
         }
 
         return result.toString();
     }
 
-    @Override public String visitProg(KotlinParser.ProgContext ctx) { return (String)visitChildren(ctx); }
+    @Override
+    public String visitChildren(RuleNode node) {
+        return visitChildren(node, "");
+    }
+
+    @Override
+    public String visitProg(KotlinParser.ProgContext ctx) {
+        return visitChildren(ctx, "\n");
+    }
 
     @Override
     public String visitPackageDeclaration(KotlinParser.PackageDeclarationContext ctx) {
