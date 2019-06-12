@@ -1,6 +1,13 @@
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.LinkedList;
+
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
@@ -35,7 +42,8 @@ public class Kotlin2Java {
         KotlinParser parser = new KotlinParser(tokens);
         ParseTreeVisitor visitor = new KotlinWalker();
 
-        String result = (String)visitor.visit(parser.prog());
+        Program program = (Program)visitor.visit(parser.prog());
+        String result = program.toString();
 
         // Output
         fromConsole = true; // For debugging
@@ -73,6 +81,79 @@ enum Type {
     }
 }
 
+class Program {
+    String packageName = "";
+    Set<String> importList = new HashSet<>();
+    Map<String, Variable> variableList = new HashMap<>();
+    Map<String, Function> functionList = new HashMap<>();
+    Map<String, Class> classList = new HashMap<>();
+    Map<String, Interface> interfaceList = new HashMap<>();
+    List<Element> elementList = new LinkedList<>();
+}
+
+interface Element {
+    enum ElementType {
+        Variable, Function, Class, Interface, None
+    }
+
+    ElementType elementType = ElementType.None;
+}
+
+class Variable implements Element {
+    boolean isOverride = false;
+    boolean isFinal = false;
+    String id = "";
+    Type type;
+    boolean isGet = false;
+    Expression assignValue = null;
+
+    @Override
+    public String toString() {
+        StringBuilder content = new StringBuilder();
+
+        //if(isOverride) content.append("override ");
+        if(isFinal) content.append("final ");
+        content.append(type + " ");
+        content.append(id);
+        //if(isGet) content.append("get");
+        if(assignValue != null) content.append(" = " + assignValue);
+
+        return content.toString();
+    }
+}
+
+abstract class Form implements Element {
+    String name = "";
+    Type type = Type.Void;
+    Map<String, Variable> argumentList = new HashMap<>();
+    Map<String, Variable> variableList = new HashMap<>();
+    Map<String, Function> functionList = new HashMap<>();
+    Map<String, Class> classList = new HashMap<>();
+    List<Element> elementList = new LinkedList<>();
+}
+
+class Function extends Form {
+
+}
+
+class Class extends Form {
+
+}
+
+class Interface extends Form{
+
+}
+
+class Collection {
+    enum CollectionType {
+        List, Set
+    }
+
+    CollectionType collectionType;
+    Type elementType;
+    List<String> elementList = new LinkedList<>();
+}
+
 class Expression {
     String content;
     Type type;
@@ -108,98 +189,49 @@ class KotlinWalker extends KotlinBaseVisitor {
 
         return type;
     }
-    
-    String nullSafe(Object string) {
-        if(string == null) {
-            return "";
-        } else if(string instanceof String) {
-            return (String)string;
-        } else {
-            return string.toString();
-        }
-    }
-
-    String visitChildren(RuleNode node, String seperator, int startIndex, int endIndex) {
-        StringBuilder result = new StringBuilder();
-
-        if(endIndex > startIndex) {
-            if(node.getChild(startIndex) instanceof TerminalNode) {
-                if(!node.getChild(startIndex).getText().equals("<EOF>")) {
-                    result.append(nullSafe(node.getChild(startIndex).getText()));
-                }
-            } else {
-                result.append(nullSafe(node.getChild(startIndex).accept(this)));
-            }
-        }
-        for(int i = startIndex + 1; i < endIndex; i++) {
-            if(node.getChild(i) instanceof TerminalNode) {
-                if(!node.getChild(i).getText().equals("<EOF>")) {
-                    result.append(seperator + nullSafe(node.getChild(i).getText()));
-                }
-            } else {
-                result.append(seperator + nullSafe(node.getChild(i).accept(this)));
-            }
-        }
-
-        return result.toString();
-    }
-
-    String visitChildren(RuleNode node, String seperator) {
-        return visitChildren(node, seperator, 0, node.getChildCount());
-    }
 
     @Override
-    public String visitChildren(RuleNode node) {
-        return visitChildren(node, "", 0, node.getChildCount());
+    public Program visitProg(KotlinParser.ProgContext ctx) {
+        Program program = new Program();
+
+        if(ctx.packageDeclaration() != null) this.visitPackageDeclaration(ctx.packageDeclaration(), program);
+        if(ctx.importList() != null) this.visitImportList(ctx.importList(), program);
+        if(ctx.topLevelBody() != null) this.visitTopLevelBody(ctx.topLevelBody(), program);
+
+        return program;
     }
 
-    @Override
-    public String visitProg(KotlinParser.ProgContext ctx) {
-        return visitChildren(ctx, "\n");
+    private void visitPackageDeclaration(KotlinParser.PackageDeclarationContext ctx, Program program) {
+        program.packageName = ctx.packageName().getText();
     }
 
-    @Override
-    public String visitPackageDeclaration(KotlinParser.PackageDeclarationContext ctx) {
-        return "package " + this.visitPackageName(ctx.packageName()) + ";\n";
+    private void visitImportList(KotlinParser.ImportListContext ctx, Program program) {
+        for(int i = 0; i < ctx.getChildCount(); i++)
+            this.visitImportDeclaration(ctx.importDeclaration(i), program.importList);
     }
 
-    @Override
-    public String visitPackageName(KotlinParser.PackageNameContext ctx) {
-        return ctx.getText();
+    private void visitImportDeclaration(KotlinParser.ImportDeclarationContext ctx, Set<String> importList) {
+        importList.add(ctx.importName().getText());
     }
 
-    @Override
-    public String visitImportList(KotlinParser.ImportListContext ctx) {
-        return "import java.util.*;\n" + visitChildren(ctx, "\n") + "\n";
+    private void visitTopLevelBody(KotlinParser.TopLevelBodyContext ctx, Program program) {
+        for(int i = 0; i < ctx.getChildCount(); i++)
+            this.visitTopLevelBodyElement(ctx.topLevelBodyElement(i), program);
     }
 
-    @Override
-    public String visitImportDeclaration(KotlinParser.ImportDeclarationContext ctx) {
-        return "import " + this.visitImportName(ctx.importName()) + ";";
+    private void visitTopLevelBodyElement(KotlinParser.TopLevelBodyElementContext ctx, Program program) {
+        if(ctx.assignStatement() != null) this.visitAssignStatement(ctx.assignStatement(), program.elementList, program.variableList);
+        if(ctx.functionDeclaration() != null) this.visitFunctionDeclaration(ctx.functionDeclaration(), program.elementList, program.functionList);
+        if(ctx.classDeclaration() != null) this.visitClassDeclaration(ctx.classDeclaration(), program.elementList, program.classList);
+        if(ctx.interfaceDeclaration() != null) this.visitInterfaceDeclaration(ctx.interfaceDeclaration(), program.elementList, program.interfaceList);
     }
 
-    @Override
-    public String visitImportName(KotlinParser.ImportNameContext ctx) {
-        return ctx.getText();
+    private void visitBody(KotlinParser.BodyContext ctx, Body body) {
+        for(int i = 0; i < ctx.getChildCount(); i++)
+            this.visitBodyElement(ctx.bodyElement(i), body);
     }
 
-    @Override
-    public String visitTopLevelBody(KotlinParser.TopLevelBodyContext ctx) {
-        return "class Main {\n" + visitChildren(ctx, "\n") + "\n}";
-    }
-
-    @Override
-    public String visitTopLevelBodyElement(KotlinParser.TopLevelBodyElementContext ctx) {
-        return visitChildren(ctx, "\n");
-    }
-
-    @Override public
-    String visitBody(KotlinParser.BodyContext ctx) {
-        return visitChildren(ctx, "\n");
-    }
-
-    @Override
-    public String visitBodyElement(KotlinParser.BodyElementContext ctx) {
+    private void visitBodyElement(KotlinParser.BodyElementContext ctx, ) {
         if(ctx.functionCallStatement() != null || ctx.returnStatement() != null || ctx.expression() != null) {
             return this.visit(ctx.getChild(0)).toString() + ";";
         } else {
@@ -525,8 +557,22 @@ class KotlinWalker extends KotlinBaseVisitor {
         }
     }
 
-    @Override
-    public String visitAssignStatement(KotlinParser.AssignStatementContext ctx) {
+    private void visitAssignStatement(KotlinParser.AssignStatementContext ctx, List<Element> elementList, Map<String, Variable> variableList) {
+        Variable variable = new Variable();
+
+        if(ctx.Override() != null) variable.isOverride = true;
+        if(ctx.Mode().getText().equals("val")) variable.isFinal = true;
+        variable.id = ctx.Id().getText();
+        if(ctx.expression() != null) this.visitExpression(ctx.expression());
+        if(ctx.type() != null) variable.type = this.visitType(ctx.type());
+        // TODO: isGet
+
+
+
+
+
+
+
         StringBuilder content = new StringBuilder();
         String mode = ctx.Mode().getText();
 
